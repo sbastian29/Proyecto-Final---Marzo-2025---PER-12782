@@ -36,7 +36,6 @@ La arquitectura incluye servicios como PostgreSQL, Kafka, Spark y Jupyter Notebo
 - Visualización de métricas y KPIs
 - Reportes de tendencias y patrones
 
-*Nota: Los dashboards de Power BI están diseñados para visualizar datos procesados, pero la conexión directa con PostgreSQL no está implementada en este proyecto.*
 
 ---
 
