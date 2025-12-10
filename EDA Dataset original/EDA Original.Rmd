@@ -1,0 +1,206 @@
+---
+title: "EDA: Telecom Churn"
+author: "Sebastián Castaño Suárez, Graciela Díaz Taveras, Sergio García Martín, Aurora Pérez García
+"
+date: '`r Sys.Date()`'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introducción
+
+En este trabajo realizaremos un Análisis Exploratorio de Datos (EDA) completo sobre un conjunto de datos de una compañía de telecomunicaciones. El objetivo es simular un proyecto de **Customer Analytics** para entender el comportamiento de los clientes, tal como se plantea en la descripción del problema de negocio.
+
+El dataset proviene del archivo `telecom_churn_semi_structured.json`.
+
+### Objetivo
+
+El objetivo principal es identificar patrones que nos ayuden a predecir y reducir el abandono de clientes (**Churn**).
+
+-   **¿Qué características tienen los clientes que abandonan la compañía?**
+
+-   **¿Existen factores económicos o de servicio determinantes?**
+
+## Paso 1: Cargar los datos y explorar su estructura
+
+El objetivo es comprender la estructura del dataset y las variables clave.
+
+**1. Carga y Librerías**
+
+```{r}
+# 1. Instalar paquetes necesarios (comentado para evitar reinstalación al generar el reporte)
+# install.packages("jsonlite")
+# install.packages("tidyverse")
+```
+
+```{r}
+# 2. Cargar paquetes necesarios
+library(tidyverse)
+library(jsonlite)
+```
+
+```{r}
+# 3. Cargar los datos
+# Usamos flatten = TRUE para 'aplanar' estructuras anidadas automáticamente
+churn_data <- fromJSON("telecom_churn_semi_structured.json", flatten = TRUE)
+
+# 4. Convertir a tibble (formato de tabla mejorado de R)
+churn_data <- as_tibble(churn_data)
+
+# 5. Ver las primeras filas
+head(churn_data)
+```
+
+## **2. Tipos de Variables**
+
+Comprobamos qué tipo de datos tenemos y ajustamos los formatos necesarios.
+
+```{r}
+# 1. Explorar la estructura de los tipos de datos
+glimpse(churn_data)
+
+# 2. Transformar las variables categóricas (de tipo 'character') a factor
+churn_data <- churn_data %>%
+  mutate(across(where(is.character), as.factor))
+  
+# Comprobamos que ha cambiado a Factor
+glimpse(churn_data)
+```
+
+## 3. Resumen de las variables claves:
+
+```{r}
+# 1. Generar un resumen estadístico de TODAS las variables
+summary(churn_data)
+```
+
+**Interpretación inicial:** Observamos que la media de la variable objetivo es **0.3524**, lo que indica que aproximadamente el **35%** de los clientes de la muestra han abandonado la compañía. No se observan valores nulos (`NA's`) en el resumen estadístico, por lo que no es necesaria la imputación de datos.
+
+## Paso 2: Limpieza y Calidad del Dato
+
+Aunque no hay nulos, preparamos la variable objetivo y verificamos duplicados.
+
+```{r}
+# 1. Convertir 'churn' de numérico (0/1) a factor (0/1) para el análisis gráfico
+churn_data <- churn_data %>%
+  mutate(additional_features.churn = as.factor(additional_features.churn))
+
+# 2. Comprobación de duplicados
+num_duplicados <- sum(duplicated(churn_data))
+print(paste("Número de filas duplicadas:", num_duplicados))
+```
+
+## Paso 3: Análisis Descriptivo (Univariado)
+
+**1. Variable Objetivo: Churn**
+
+```{r}
+# Gráfico de barras para ver cuántos clientes se van vs los que se quedan
+ggplot(churn_data, aes(x = additional_features.churn)) +
+  geom_bar(fill = "steelblue", color = "black") +
+  labs(title = "Distribución del Abandono (Churn)", 
+       x = "Status (0 = Se queda, 1 = Se va)", 
+       y = "Número de Clientes") +
+  theme_minimal()
+```
+
+**2. Variable Numérica: `subscription.monthly_charges`**
+
+Queremos ver cuánto pagan mensualmente los clientes.
+
+```{r}
+# Histograma para ver la distribución de precios
+ggplot(churn_data, aes(x = subscription.monthly_charges)) +
+  geom_histogram(bins = 30, fill = "lightgreen", color = "black") +
+  labs(title = "Distribución de Cargos Mensuales", 
+       x = "Costo Mensual ($)", 
+       y = "Frecuencia") +
+  theme_minimal()
+```
+
+**Interpretación:**
+
+-   **Churn (Gráfico Azul):** Vemos que la clase mayoritaria es la 0 (Clientes que se quedan). Como vimos en el resumen, el abandono es del 35%.
+
+-   **Cargos Mensuales (Gráfico Verde):** Observamos una distribución **Uniforme (plana)**. No hay un precio "típico" ni una concentración clara de tarifas.
+
+## Paso 4: Análisis Bivariado (Relación Económica)
+
+El objetivo es examinar si el coste del servicio influye en la decisión de abandonar. Se analiza si pagan más, en promedio, los clientes que se van.
+
+**Gráfico de Cajas (churn vs. monthly_charges):**
+
+```{r}
+# Boxplot comparando lo que pagan los que se quedan (0) vs los que se van (1)
+ggplot(churn_data, aes(x = additional_features.churn, y = subscription.monthly_charges, fill = additional_features.churn)) +
+  geom_boxplot() +
+  labs(title = "Relación entre Abandono y Costo Mensual", 
+       x = "¿Se ha ido el cliente? (0=No, 1=Si)", 
+       y = "Cargos Mensuales ($)") +
+  theme_minimal()
+```
+
+```{r}
+# Calculamos la media de precio para cada grupo
+churn_data %>%
+  group_by(additional_features.churn) %>%
+  summarise(
+    Media_Precio = mean(subscription.monthly_charges),
+    Mediana_Precio = median(subscription.monthly_charges)
+  )
+```
+
+**Interpretación:** No existe diferencia significativa en el costo mensual entre los clientes que abandonan y los que permanecen. Las medias y medianas son prácticamente idénticas.
+
+## Paso 5: Análisis Multivariado
+
+Buscamos si hay diferencia de Churn entre los clientes nuevos y los veteranos, desglosado por plan.
+
+```{r}
+# 1. Gráfico de cajas: Antigüedad vs Churn, coloreado por Tipo de Plan
+ggplot(churn_data, aes(x = additional_features.churn, y = subscription.tenure_months, fill = subscription.plan_type)) +
+  geom_boxplot() +
+  labs(title = "Antigüedad según Churn y Tipo de Plan",
+       x = "¿Se ha ido? (0=No, 1=Si)",
+       y = "Meses de Antigüedad",
+       fill = "Tipo de Plan") +
+  theme_minimal()
+```
+
+**Interpretación:** No existe diferencia significativa en la antigüedad ni el tipo de plan entre los clientes que abandonan y los que permanecen.
+
+## Paso 6: Análisis de Satisfacción y Ubicación
+
+**1. Satisfacción vs Churn**
+
+¿Los clientes que se van tienen puntuaciones más bajas?
+
+```{r}
+ggplot(churn_data, aes(x = additional_features.churn, y = customer_support.customer_feedback_score, fill = additional_features.churn)) +
+  geom_boxplot() +
+  labs(title = "Impacto de la Satisfacción en el Abandono",
+       x = "¿Se ha ido? (0=No, 1=Si)",
+       y = "Puntuación de Feedback (1-10)") +
+  theme_minimal()
+```
+
+**2. Localización vs Churn**
+
+```{r}
+ggplot(churn_data, aes(x = personal_info.location, fill = additional_features.churn)) +
+  geom_bar(position = "fill") +
+  labs(title = "Porcentaje de Abandono por Zona",
+       x = "Zona Geográfica",
+       y = "Proporción (0-1)",
+       fill = "Churn") +
+  theme_minimal() +
+  scale_y_continuous(labels = scales::percent)
+```
+
+**Interpretación:** No existe diferencia significativa en la localización o la satisfacción entre los clientes que abandonan y los que permanecen.
+
+# Conclusiones y Decisión
+
+El análisis exploratorio evidencia la ausencia total de correlaciones significativas, sugiriendo un origen sintético y aleatorio de los datos. Al no existir patrones predictivos válidos, se optará por **descartar este dataset** para la fase de modelado. Se procederá a generar datos modificados que incorporen relaciones de negocio lógicas y anomalías controladas para permitir un modelado efectivo en la siguiente fase del proyecto.

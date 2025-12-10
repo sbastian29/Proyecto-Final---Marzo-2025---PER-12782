@@ -1,0 +1,106 @@
+services:
+  # PostgreSQL
+  postgres-tfm:
+    image: postgres:15
+    container_name: postgres-tfm
+    environment:
+      POSTGRES_DB: tfm_database
+      POSTGRES_USER: tfm_user
+      POSTGRES_PASSWORD: tfm_password_2024
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_tfm_data:/var/lib/postgresql/data
+      - ./database/init-scripts:/docker-entrypoint-initdb.d
+      - ./database/Telecom:/docker-entrypoint-initdb.d/telecom
+    networks:
+      - tfm-network
+    restart: unless-stopped
+
+  # PgAdmin
+  pgadmin-tfm:
+    image: dpage/pgadmin4
+    container_name: pgadmin-tfm
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@tfm.com
+      PGADMIN_DEFAULT_PASSWORD: pgadmin_tfm_2024
+    ports:
+      - "8080:80"
+    depends_on:
+      - postgres-tfm
+    networks:
+      - tfm-network
+    restart: unless-stopped
+
+  # Zookeeper
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - tfm-network
+    restart: unless-stopped
+
+  # Kafka
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - tfm-network
+    restart: unless-stopped
+
+  # Apache Spark 
+  spark:
+    image: apache/spark:3.5.0
+    container_name: spark
+    command: bash -c "/opt/spark/sbin/start-master.sh && tail -f /dev/null"
+    ports:
+      - "7077:7077"
+      - "8081:8080"
+    volumes:
+      - ./scripts:/opt/spark-apps
+    depends_on:
+      - kafka
+      - postgres-tfm
+    networks:
+      - tfm-network
+    restart: unless-stopped
+
+  # Spark Notebook (Jupyter PySpark)
+  spark-notebook:
+    image: jupyter/pyspark-notebook:latest
+    container_name: spark-notebook
+    ports:
+      - "8888:8888"
+    environment:
+      - JUPYTER_TOKEN=tfm2025
+    volumes:
+      - ./scripts:/home/jovyan/work
+    depends_on:
+      - spark
+    networks:
+      - tfm-network
+    restart: unless-stopped
+
+volumes:
+  postgres_tfm_data:
+
+networks:
+  tfm-network:
+    driver: bridge

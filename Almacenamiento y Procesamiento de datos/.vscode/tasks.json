@@ -1,0 +1,23 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Docker Up TFM",
+      "type": "shell",
+      "command": "docker-compose up -d",
+      "group": "build"
+    },
+    {
+      "label": "Docker Down TFM",
+      "type": "shell",
+      "command": "docker-compose down",
+      "group": "build"
+    },
+    {
+      "label": "Docker Restart TFM",
+      "type": "shell",
+      "command": "docker-compose restart",
+      "group": "build"
+    }
+  ]
+}

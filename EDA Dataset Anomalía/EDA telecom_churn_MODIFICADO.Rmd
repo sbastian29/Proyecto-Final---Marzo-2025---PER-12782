@@ -1,0 +1,174 @@
+---
+title: "EDA: Telecom Churn"
+author: "Sebastián Castaño Suárez, Graciela Díaz Taveras, Sergio García Martín, Aurora Pérez García
+"
+date: '`r Sys.Date()`'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introducción
+
+En esta fase del proyecto, analizamos el conjunto de datos **modificado** (`telecom_churn_MODIFICADO.csv`). Tras detectar que el dataset original carecía de patrones lógicos, se realizó un proceso de Ingeniería de Datos para inyectar reglas de negocio causales (basadas en calidad de red, precios y antigüedad).
+
+### Objetivo:
+
+El objetivo de este EDA es **validar estadísticamente** que las relaciones inyectadas son visibles y significativas antes de proceder al modelado predictivo.
+
+-   **Validación de Infraestructura:** ¿Confirman los datos que la mala calidad de red provoca abandono?
+
+-   **Validación Económica:** ¿Se observa que los precios altos disparan el riesgo de fuga?
+
+-   **Análisis de Variables Confusoras:** ¿Podemos distinguir entre causas reales (Precio) y falsos culpables (Edad)?
+
+## Paso 1: Carga y Preparación de Datos
+
+Cargamos el dataset resultante de la simulación en Python.
+
+```{r}
+# 1. Instalar paquetes necesarios (comentado para evitar reinstalación al generar el reporte)
+# install.packages("corrplot")
+# install.packages("tidyverse")
+```
+
+```{r}
+# 2. Cargar paquetes necesarios
+library(tidyverse)
+library(corrplot)
+```
+
+```{r}
+# 1. Cargar el dataset modificado
+churn_data <- read_csv("telecom_churn_MODIFICADO.csv")
+
+# 2. Conversión de tipos
+# Convertimos Churn y textos a factores para el análisis gráfico
+churn_data <- churn_data %>%
+  mutate(
+    churn = as.factor(churn),
+    personal_info_location = as.factor(personal_info_location),
+    personal_info_gender = as.factor(personal_info_gender),
+    subscription_plan_type = as.factor(subscription_plan_type)
+  )
+
+# 3. Vista previa
+glimpse(churn_data)
+```
+
+## Paso 2: Validación del KPI Principal (Infraestructura y localización)
+
+**2.1. Análisis Global: Impacto de la Calidad de Red ---**
+
+Hipótesis: Una puntuación baja (mala cobertura) debería estar asociada al abandono.
+
+```{r}
+ggplot(churn_data, aes(x = churn, y = customer_support_network_quality_score, fill = churn)) +
+  geom_boxplot() +
+  labs(title = "1. Impacto Global de la Calidad de Red",
+       subtitle = "Comparativa de puntuaciones entre clientes que se quedan vs los que se van",
+       x = "¿Se ha ido?",
+       y = "Calidad de Red (1-5)",
+       fill = "Churn") +
+  theme_minimal()
+```
+
+**2.2. Desglose Geográfico: ¿Dónde falla la red?**
+
+Profundizamos para ver si la mala calidad es aleatoria o depende de la zona (Infraestructura).
+
+```{r}
+ggplot(churn_data, aes(x = personal_info_location, y = customer_support_network_quality_score, fill = personal_info_location)) +
+  geom_boxplot() +
+  labs(title = "2. Auditoría de Infraestructura por Zona", 
+       subtitle = "Distribución de la calidad de red según la localización del cliente",
+       x = "Zona Geográfica", 
+       y = "Calidad de Red",
+       fill = "Zona") +
+  theme_minimal()
+```
+
+**2.3. Interacción final: Zona + Calidad de red + Churn**
+
+Confirmamos que el abandono en zonas rurales está causado por esta mala calidad.
+
+```{r}
+ggplot(churn_data, aes(x = personal_info_location, y = customer_support_network_quality_score, fill = churn)) +
+  geom_boxplot() +
+  labs(title = "3. Interacción: Zona vs Calidad vs Churn", 
+       subtitle = "Análisis del abandono por zona y calidad de servicio",
+       x = "Zona Geográfica", 
+       y = "Calidad de Red",
+       fill = "Churn") +
+  theme_minimal()
+```
+
+**Conclusiones del análisis de infraestructura:**
+
+Los gráficos confirman la existencia de un problema estructural crítico:
+
+1.  **Correlación Negativa Fuerte:** Se valida la hipótesis principal. Existe una relación inversa clara entre la calidad de la red y la retención.
+2.  **Identificación de zona crítica:** El análisis por zonas revela que la baja calidad no es un problema generalizado, sino localizado. Las zonas **Rurales** y **Suburbanas** presentan una penalización sistemática en su servicio técnico.
+3.  **Causalidad Confirmada:** El tercer gráfico demuestra que el abandono masivo en zonas rurales es fruto de la cobertura. La calidad de la red es un punto importante en todas las zonas, pero en la zona rural, debido a la mala puntuación, el Churn es crítico.
+
+No estamos ante un problema de precio o marketing en estas zonas, sino ante un déficit técnico. Las acciones de retención en el segmento Rural deben priorizar la inversión en infraestructura o medidas compensatorias (descuentos por fallos de servicio) antes que ofertas comerciales estándar.
+
+## Paso 3: Validación del factor Precio
+
+Analizamos si el precio monthly_charges actúa como posible barrera de salida.
+
+```{r}
+# Densidad: Precio vs Churn
+ggplot(churn_data, aes(x = subscription_monthly_charges, fill = churn)) +
+  geom_density(alpha = 0.6) +
+  geom_vline(xintercept = 100, linetype="dashed", color="black") +
+  labs(title = "Distribución de Cargos Mensuales por Churn",
+       subtitle = "Que facturas tienen más Churn",
+       x = "Cargos Mensuales ($)",
+       y = "Densidad") +
+  theme_minimal()
+```
+
+**Validación:** Se observa un desplazamiento claro. La curva azul/turquesa (Churn) domina en los rangos de precio alto (\>100\$), confirmando que el coste es un *punto clave* de abandono en este nuevo dataset.
+
+## Paso 4: Análisis de la Variable confusora (Edad vs Precio)
+
+Como se planeó, se observa una relación entre el precio y la edad.
+
+Para facilitar la interpretación visual, segmentamos la variable continua 'Edad' en 6 intervalos y analizamos la distribución del gasto en cada tramo.
+
+```{r}
+# 1. Segmentación de la edad
+churn_data <- churn_data %>%
+  mutate(rango_edad = cut(personal_info_age, breaks = 4))
+
+# 2. Visualización de la tendencia
+# Añadimos 'fill = rango_edad' para que R ponga sus colores por defecto
+ggplot(churn_data, aes(x = rango_edad, y = subscription_monthly_charges, fill = rango_edad)) +
+  geom_boxplot() + 
+  labs(title = "Distribución de Facturación según Rango de Edad",
+       subtitle = "Tendencia observada: Incremento progresivo de la factura con la edad",
+       x = "Tramo de Edad",
+       y = "Factura Mensual ($)",
+       fill = "Edad") + # Leyenda automática
+  theme_minimal() +
+   scale_fill_brewer(palette = "Pastel1")
+```
+
+**Conclusiones del Análisis de Edad-Precio:**
+
+1.  **Confirmación de tendencia:** A medida que avanzamos en los rangos de edad, la mediana de la factura mensual se incrementa sistemáticamente.
+2.  **Implicación para el modelo:** El modelo predictivo deberá ser capaz de desentrañar esta relación para asignar correctamente la probabilidad de abandono al factor económico y no al demográfico.
+
+# Conclusiones del EDA (Dataset Modificado)
+
+El nuevo dataset presenta:
+
+1.  **Señal Fuerte en Infraestructura:** Correlación negativa clara entre Calidad de Red y Churn intensificado en la zona Rural.
+
+2.  **Sensibilidad al Precio:** Los clientes con tarifas altas muestran mayor propensión al abandono.
+
+3.  **Complejidad Estadística:** La presencia de correlaciones entre variables independientes (Edad-Precio) asegura un escenario realista y desafiante para el entrenamiento de modelos de Machine Learning.
+
+**Decisión:** El dataset es válido y está listo para la fase de modelado predictivo.

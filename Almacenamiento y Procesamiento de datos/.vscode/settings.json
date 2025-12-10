@@ -1,0 +1,7 @@
+{
+  "docker.composeFile": "${workspaceFolder}/docker-compose.yml",
+  "docker.commands.up": "docker-compose up -d",
+  "docker.commands.down": "docker-compose down",
+  "files.autoSave": "afterDelay",
+  "editor.formatOnSave": true
+}
