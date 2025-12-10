@@ -14,8 +14,8 @@ El directorio raíz (`TFM`) organiza el proyecto en los siguientes componentes c
 |-------------------|-------------|
 | `database/` | Contiene los scripts de inicialización de la base de datos PostgreSQL. Incluye la creación de la base de datos, las tablas, los índices (para optimizar el rendimiento de las consultas y la velocidad de búsqueda) y una vista predefinida para facilitar la consulta rápida de datos completos de un cliente. |
 | `scripts/` | Almacena los principales scripts de Python para la lógica de negocio del proyecto. Estos scripts son montados como volúmenes en los contenedores de Spark y Spark Notebook. |
-| `scripts/Kafka/` | Contiene la lógica para la ingestión y el manejo de datos con Apache Kafka. Se asume que hay un único script principal aquí para el rol de **Productor** que simula el envío de datos de churn. |
-| `scripts/spark/` | Contiene la lógica para el procesamiento de streaming de datos con Apache Spark. Se asume que hay un único script principal aquí que actúa como **Consumidor** de Kafka y realiza el procesamiento. |
+| `scripts/Kafka/` | Contiene la lógica para la ingestión y el manejo de datos con Apache Kafka. Hay un único script principal aquí para el rol de **Productor** que simula el envío de datos de churn. |
+| `scripts/spark/` | Contiene la lógica para el procesamiento de streaming de datos con Apache Spark. Hay un único script principal aquí que actúa como **Consumidor** de Kafka y realiza el procesamiento. |
 | `Health/` | Carpeta dedicada a los scripts o archivos para realizar chequeos de salud (Health Checks) de los servicios en los contenedores de Docker, asegurando que cada componente esté operativo. |
 | `Attachments/` | Carpeta para archivos de entrada semi-estructurados, como `telecom_churn_semi_structured.json`, que se utilizarán para la simulación de datos o pruebas. |
 | `.vscode/` | Configuración específica del editor VS Code (opcional). |
@@ -55,7 +55,7 @@ Una vez que los contenedores estén operativos:
 
 - **Productor Kafka**: El script principal dentro de `scripts/Kafka/` debe ejecutarse para simular la generación y el envío de los eventos de churn al topic de Kafka.
 
-- **Procesador Spark**: El script principal dentro de `scripts/spark/` debe ejecutarse (generalmente mediante `spark-submit` o a través del entorno `spark-notebook`) para consumir los datos de Kafka, aplicar la lógica de procesamiento y analítica, y persistir los resultados en PostgreSQL.
+- **Procesador Spark**: El script principal dentro de `scripts/spark/` debe ejecutarse para consumir los datos de Kafka, aplicar la lógica de procesamiento y analítica, y persistir los resultados en PostgreSQL.
 
 ### 3. Acceso a Interfaces
 
